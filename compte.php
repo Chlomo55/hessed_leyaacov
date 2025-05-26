@@ -89,21 +89,36 @@ if (!$user) {
             <h2>Bienvenue, <?php echo htmlspecialchars($user['prenom']); ?> !</h2>
             <p>Votre espace personnel</p>
         </div>
-        <div class="user-infos">
+        <div class="user-infos" id="user-infos" style="display:none; position:relative;">
+            <span id="close-infos" style="position:absolute;top:10px;right:10px;cursor:pointer;font-size:22px;color:#e74c3c;font-weight:bold;">&times;</span>
             <p><strong>Nom :</strong> <?php echo htmlspecialchars($user['nom']); ?></p>
             <p><strong>Prénom :</strong> <?php echo htmlspecialchars($user['prenom']); ?></p>
             <p><strong>Pseudo :</strong> <?php echo htmlspecialchars($user['pseudo']); ?></p>
             <p><strong>Email :</strong> <?php echo htmlspecialchars($user['mail']); ?></p>
             <p><strong>Téléphone :</strong> <?php echo htmlspecialchars($user['num']); ?></p>
             <p><strong>Adresse :</strong> <?php echo htmlspecialchars($user['adresse']); ?></p>
-            <p><strong>Ville :</strong> <?php echo htmlspecialchars($user['ville']); ?></p>
         </div>
         <div class="actions">
             <a href="add-article.php" class="action-btn">Ajouter un article</a>
-            <a href="mes_infos.php" class="action-btn">Mes infos</a>
+            <a href="#" id="show-infos" class="action-btn">Mes infos</a>
+            <a href="articles-preteur.php" class="action-btn">Mes articles à prêter</a>
             <a href="suivre_pret.php" class="action-btn">Suivre un prêt</a>
             <a href="deconnexion.php" class="action-btn" style="background: #e74c3c;">Déconnexion</a>
         </div>
+        <script>
+        const userInfos = document.getElementById('user-infos');
+        const showInfosBtn = document.getElementById('show-infos');
+        const closeInfos = document.getElementById('close-infos');
+        showInfosBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            userInfos.style.display = 'block';
+            showInfosBtn.style.display = 'none';
+        });
+        closeInfos.addEventListener('click', function() {
+            userInfos.style.display = 'none';
+            showInfosBtn.style.display = '';
+        });
+        </script>
     </div>
 </body>
 </html>

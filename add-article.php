@@ -14,10 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_preteur = intval($_SESSION['user_id']);
     $nom = trim($_POST['nom']);
     $detail = trim($_POST['detail']);
-    $pref = isset($_POST['pref']) ? implode(',', $_POST['pref']) : '';
+    $pref = isset($_POST['pref']) ? implode(', ', $_POST['pref']) : '';
 
     // Gestion des photos
-    $photos = array_fill(1, 5, null);
+    $photos = array_fill(1, 5, ''); // Par défaut, toutes les colonnes sont des chaînes vides
     if (!is_dir('uploads')) {
         mkdir('uploads', 0777, true);
     }
@@ -45,33 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $photos[5],
         $pref
     ]);
-        "issssssss",
-        $id_preteur,
-        $nom,
-        $detail,
-        $photos[1],
-        $photos[2],
-        $photos[3],
-        $photos[4],
-        $photos[5],
-        $pref
-    );
-    $stmt->execute();
 
     // Récupérer l'email du prêteur
-    $stmt_mail = $conn->prepare("SELECT mail FROM users WHERE id = ?");
-    $stmt_mail->bind_param("i", $id_preteur);
-    $stmt_mail->execute();
-    $stmt_mail->bind_result($mail_preteur);
-    $stmt_mail->fetch();
-    $stmt_mail->close();
+    $stmt_mail = $pdo->prepare("SELECT mail FROM users WHERE id = ?");
+    $stmt_mail->execute([$id_preteur]);
+    $mail_preteur = $stmt_mail->fetchColumn();
 
     // Envoi du mail via PHPMailer
     $mail = new PHPMailer(true);
     try {
         // Paramètres SMTP à adapter selon ton hébergeur
         $mail->isSMTP();
-        $mail->Host = 'smtp.example.com'; // À remplacer
+        $mail->Host = 'smtp.gmail.com'; // À remplacer
         $mail->SMTPAuth = true;
         $mail->Username = 'chlomo.freoua@gmail.com'; // À remplacer
         $mail->Password = 'qbbnlygeawmdrsto'; // À remplacer
@@ -115,7 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div id="photos">
             <div class="photo-div">
                 <label>Photo 1 :
-                    <input type="file" name="photo_1" accept="image/*">
+                    <input type="file" name="photo_1" accept="image/*" onchange="previewImage(this, 1)">
+                    <img id="preview_1" src="" alt="Prévisualisation" style="display:none;width:100px;height:100px;object-fit:cover;border:1px solid #ccc;" />
                 </label>
             </div>
         </div>
@@ -137,11 +123,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const div = document.createElement('div');
             div.className = 'photo-div';
             div.innerHTML = `<label>Photo ${photoCount} :
-                <input type="file" name="photo_${photoCount}" accept="image/*">
+                <input type="file" name="photo_${photoCount}" accept="image/*" onchange="previewImage(this, ${photoCount})">
+                <img id="preview_${photoCount}" src="" alt="Prévisualisation" style="display:none;width:100px;height:100px;object-fit:cover;border:1px solid #ccc;" />
             </label>`;
             document.getElementById('photos').appendChild(div);
             if (photoCount === 5) this.disabled = true;
         };
+
+        function previewImage(input, num) {
+            const file = input.files && input.files[0];
+            const preview = document.getElementById('preview_' + num);
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'inline-block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.src = '';
+                preview.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>
