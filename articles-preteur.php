@@ -7,6 +7,12 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
+
+// Compter les demandes en attente pour les articles du prêteur
+$stmtNotif = $pdo->prepare('SELECT COUNT(*) FROM demande WHERE id_preteur = ? AND statut = 0');
+$stmtNotif->execute([$user_id]);
+$nbDemandes = $stmtNotif->fetchColumn();
+
 $stmt = $pdo->prepare('SELECT * FROM article WHERE id_preteur = ? ORDER BY id DESC');
 $stmt->execute([$user_id]);
 $articles = $stmt->fetchAll();
@@ -89,6 +95,23 @@ function getEtatLabel($etat) {
             margin-bottom: 10px;
             display: inline-block;
         }
+        .notif-badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: #fff;
+            border-radius: 50%;
+            padding: 4px 10px;
+            font-size: 1em;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .notif-link {
+            text-decoration: none;
+            color: #4e54c8;
+            font-weight: bold;
+            margin-bottom: 18px;
+            display: inline-block;
+        }
         @media (max-width: 700px) {
             .container { flex-direction: column; gap: 18px; align-items: center; }
             .card { width: 95vw; max-width: 350px; }
@@ -97,6 +120,14 @@ function getEtatLabel($etat) {
 </head>
 <body>
     <h1 style="text-align:center;margin-top:30px;color:#4e54c8;">Mes articles à prêter</h1>
+    <div style="text-align:center;margin-bottom:18px;">
+        <a href="messagerie.php" class="notif-link">
+            Messagerie
+            <?php if ($nbDemandes > 0): ?>
+                <span class="notif-badge"><?php echo $nbDemandes; ?></span>
+            <?php endif; ?>
+        </a>
+    </div>
     <div class="container">
         <?php if (empty($articles)): ?>
             <p style="font-size:1.2em;color:#888;">Aucun article trouvé.</p>
