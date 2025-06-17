@@ -25,6 +25,12 @@ $demandes = $stmt->fetchAll();
     <p>Aucune demande trouvée.</p>
 <?php else: ?>
     <?php foreach ($demandes as $demande): ?>
+        <?php
+        // Compter les messages non lus pour cette demande, pour l'utilisateur connecté
+        $stmtUnread = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE id_demande = ? AND id_expediteur != ? AND lu = 0');
+        $stmtUnread->execute([$demande['id'], $user_id]);
+        $unreadCount = $stmtUnread->fetchColumn();
+        ?>
         <a class="discussion-item" href="discussion.php?demande=<?= $demande['id'] ?>">
             <div class="disc-avatar">
                 <?= strtoupper(substr($demande['article_nom'],0,1)) ?>
@@ -32,6 +38,11 @@ $demandes = $stmt->fetchAll();
             <div class="disc-info">
                 <div class="disc-title">
                     <?= htmlspecialchars($demande['article_nom']) ?>
+                    <?php if ($unreadCount > 0): ?>
+                        <span style="background:#e74c3c;color:#fff;border-radius:12px;padding:2px 8px;font-size:0.85em;margin-left:8px;vertical-align:middle;">
+                            <?= $unreadCount ?>
+                        </span>
+                    <?php endif; ?>
                 </div>
                 <div class="disc-msg">
                     <?php

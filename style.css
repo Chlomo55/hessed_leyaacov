@@ -1,0 +1,76 @@
+/* style.css - Style moderne et responsive pour Hessed LéYaacov */
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+    background: #f7f8fa;
+    color: #222;
+}
+
+header {
+    background: linear-gradient(90deg, #4e54c8 0%, #8f94fb 100%);
+    color: #fff;
+    padding: 1.5rem 0 1rem 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    text-align: center;
+}
+
+header h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 2.2rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+nav ul li a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.1rem;
+    padding: 0.5rem 1.2rem;
+    border-radius: 25px;
+    transition: background 0.2s, color 0.2s;
+}
+
+nav ul li a:hover, nav ul li a:focus {
+    background: rgba(255,255,255,0.18);
+    color: #222;
+}
+
+@media (max-width: 600px) {
+    header h1 {
+        font-size: 1.3rem;
+    }
+    nav ul {
+        gap: 0.7rem;
+    }
+    nav ul li a {
+        font-size: 0.95rem;
+        padding: 0.4rem 0.7rem;
+    }
+}
+
+main, .container {
+    max-width: 900px;
+    margin: 2rem auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 2rem;
+}
+
+@media (max-width: 900px) {
+    main, .container {
+        margin: 1rem;
+        padding: 1rem;
+    }
+}

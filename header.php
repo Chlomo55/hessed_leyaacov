@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -7,6 +9,7 @@ session_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hessed LéYaacov</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <?php
 $pdo = new PDO('mysql:host=localhost;dbname=gmah', 'root', '');
@@ -24,7 +27,8 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             <?php else: ?>
                 <li><a href="connexion.php">Connexion</a></li>
             <?php endif; ?>
-                        
             <li><a href="contact.php">Contact</a></li>
         </ul>
     </nav>
+</header>
+<main>

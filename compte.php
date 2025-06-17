@@ -12,6 +12,11 @@ if (!$user) {
     echo "Utilisateur non trouvé.";
     exit;
 }
+
+// Notification messages non lus pour l'emprunteur
+$stmtNotif = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE id_emprunteur = ? AND id_expediteur != ? AND lu = 0');
+$stmtNotif->execute([$user_id, $user_id]);
+$nbNotif = $stmtNotif->fetchColumn();
 ?>
 
 <!DOCTYPE html>
@@ -102,6 +107,12 @@ if (!$user) {
             <a href="add-article.php" class="action-btn">Ajouter un article</a>
             <a href="#" id="show-infos" class="action-btn">Mes infos</a>
             <a href="articles-preteur.php" class="action-btn">Mes articles à prêter</a>
+            <a href="messagerie.php" class="action-btn" style="position:relative;">
+                Messagerie
+                <?php if ($nbNotif > 0): ?>
+                    <span style="position:absolute;top:-8px;right:-8px;background:#e74c3c;color:#fff;border-radius:50%;padding:4px 10px;font-size:0.95em;">+<?= $nbNotif ?></span>
+                <?php endif; ?>
+            </a>
             <a href="suivre_pret.php" class="action-btn">Suivre un prêt</a>
             <a href="deconnexion.php" class="action-btn" style="background: #e74c3c;">Déconnexion</a>
         </div>

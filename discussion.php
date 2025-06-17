@@ -14,31 +14,25 @@ if (!$demande) {
     echo "<p>Demande non trouvée ou accès refusé.</p>";
     exit;
 }
+// Marquer comme lus tous les messages non lus de cette discussion qui ne sont pas de l'utilisateur
+$stmtLu = $pdo->prepare('UPDATE messages SET lu = 1 WHERE id_demande = ? AND id_expediteur != ? AND lu = 0');
+$stmtLu->execute([$id_demande, $user_id]);
 // Envoi d'un message texte
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['message']) || isset($_FILES['audio']))) {
-    $audioFile = null;
-    if (isset($_FILES['audio']) && $_FILES['audio']['error'] === UPLOAD_ERR_OK) {
-        $dir = 'uploads/audio/';
-        if (!is_dir($dir)) mkdir($dir, 0777, true);
-        $filename = uniqid('audio_') . '.webm';
-        $filepath = $dir . $filename;
-        if (move_uploaded_file($_FILES['audio']['tmp_name'], $filepath)) {
-            $audioFile = $filename;
-        }
-    }
-    $message = isset($_POST['message']) ? trim($_POST['message']) : null;
-    if ($message || $audioFile) {
-        $stmt = $pdo->prepare('INSERT INTO messages (id_demande, id_preteur, id_emprunteur, id_expediteur, message, audio, date_envoi) VALUES (?, ?, ?, ?, ?, ?, NOW())');
-        $stmt->execute([$id_demande, $demande['id_preteur'], $demande['id_emprunteur'], $user_id, $message, $audioFile]);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
+    $message = trim($_POST['message']);
+    if ($message) {
+        $stmt = $pdo->prepare('INSERT INTO messages (id_demande, id_preteur, id_emprunteur, id_expediteur, message, date_envoi) VALUES (?, ?, ?, ?, ?, NOW())');
+        $stmt->execute([$id_demande, $demande['id_preteur'], $demande['id_emprunteur'], $user_id, $message]);
     }
     header('Location: discussion.php?demande=' . $id_demande);
     exit;
 }
-// Récupérer tous les messages de cette discussion (cette demande uniquement)
-// Ajout du champ audio si présent
-$stmtAll = $pdo->prepare('SELECT m.*, u.prenom, u.nom FROM messages m JOIN users u ON m.id_expediteur = u.id WHERE m.id_demande = ? ORDER BY m.date_envoi ASC');
-$stmtAll->execute([$id_demande]);
+// Récupérer l'historique complet des échanges entre CE prêteur et CET emprunteur pour CET article
+$stmtAll = $pdo->prepare('SELECT m.*, u.prenom, u.nom FROM messages m JOIN users u ON m.id_expediteur = u.id WHERE m.id_preteur = ? AND m.id_emprunteur = ? AND m.id_demande IN (SELECT id FROM demande WHERE id_article = ?) ORDER BY m.date_envoi ASC');
+$stmtAll->execute([$demande['id_preteur'], $demande['id_emprunteur'], $demande['article_id']]);
 $allMessages = $stmtAll->fetchAll();
+// Pour la notification visuelle : récupérer l'ID du dernier message
+$lastMsgId = !empty($allMessages) ? end($allMessages)['id'] : 0;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -133,7 +127,7 @@ body {
     min-height: 38px;
     max-height: 90px;
 }
-.wa-send-btn, .wa-audio-btn {
+.wa-send-btn {
     background: #25d366;
     color: #fff;
     border: none;
@@ -147,16 +141,8 @@ body {
     cursor: pointer;
     transition: background 0.2s;
 }
-.wa-send-btn:hover, .wa-audio-btn:hover {
+.wa-send-btn:hover {
     background: #128c7e;
-}
-.wa-audio-btn.recording {
-    background: #e74c3c;
-}
-.wa-audio-preview {
-    margin-left: 10px;
-    max-width: 120px;
-    vertical-align: middle;
 }
 @media (max-width: 600px) {
     .whatsapp-container { max-width: 100vw; min-height: 100vh; }
@@ -172,16 +158,14 @@ body {
             <div class="wa-header-title">Article : <?= htmlspecialchars($demande['article_nom']) ?></div>
             <div class="wa-header-sub">Avec <?= ($user_id == $demande['id_preteur'] ? $demande['emprunteur_prenom'] : $demande['preteur_prenom']) ?></div>
         </div>
-        <a href="commencer-pret.php?demande=<?= $id_demande ?>" style="color:#fff;text-decoration:none;font-size:1.1em;background:#128c7e;padding:7px 16px;border-radius:8px;">Commencer le prêt</a>
+        <?php if ($user_id == $demande['id_preteur']): ?>
+            <a href="commencer-pret.php?demande=<?= $id_demande ?>" style="color:#fff;text-decoration:none;font-size:1.1em;background:#128c7e;padding:7px 16px;border-radius:8px;">Commencer le prêt</a>
+        <?php endif; ?>
     </div>
     <div class="wa-messages" id="wa-messages">
         <?php foreach ($allMessages as $msg): ?>
             <div class="wa-bubble <?= $msg['id_expediteur'] == $user_id ? 'me' : 'other' ?>">
-                <?php if (!empty($msg['audio'])): ?>
-                    <audio controls src="uploads/audio/<?= htmlspecialchars($msg['audio']) ?>" style="max-width:180px;"></audio>
-                <?php else: ?>
-                    <?= nl2br(htmlspecialchars($msg['message'])) ?>
-                <?php endif; ?>
+                <?= nl2br(htmlspecialchars($msg['message'])) ?>
                 <div class="wa-meta">
                     <?= htmlspecialchars($msg['prenom'] . ' ' . strtoupper(substr($msg['nom'],0,1))) ?>
                     [<?= date('d/m/Y H:i', strtotime($msg['date_envoi'])) ?>]
@@ -192,72 +176,44 @@ body {
     <form method="post" class="wa-footer" enctype="multipart/form-data" id="wa-form">
         <textarea name="message" class="wa-input" id="wa-input" placeholder="Écrire un message..."></textarea>
         <button type="submit" class="wa-send-btn" title="Envoyer"><span>➤</span></button>
-        <button type="button" class="wa-audio-btn" id="wa-audio-btn" title="Enregistrer un audio">🎤</button>
-        <audio id="wa-audio-preview" class="wa-audio-preview" controls style="display:none;"></audio>
     </form>
 </div>
 <script>
-// Scroll auto en bas
 const waMessages = document.getElementById('wa-messages');
-waMessages.scrollTop = waMessages.scrollHeight;
-// Audio recording
-let recordBtn = document.getElementById('wa-audio-btn');
-let audioPreview = document.getElementById('wa-audio-preview');
-let waInput = document.getElementById('wa-input');
-let mediaRecorder;
-let audioChunks = [];
+let idUser = <?php echo json_encode($user_id); ?>;
 let idDemande = <?php echo json_encode($id_demande); ?>;
-let isRecording = false;
-recordBtn.addEventListener('click', async function(e) {
-    e.preventDefault();
-    if (isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        recordBtn.classList.remove('recording');
-        recordBtn.textContent = '🎤';
-        waInput.disabled = false;
-        isRecording = false;
+let lastMsgId = 0;
+function renderMessage(msg) {
+    const div = document.createElement('div');
+    div.className = 'wa-bubble ' + (msg.id_expediteur == idUser ? 'me' : 'other');
+    div.innerHTML =
+        (msg.message ? (msg.message.replace(/\n/g, '<br>')) : '') +
+        '<div class="wa-meta">' +
+        msg.prenom + ' ' + msg.nom.charAt(0).toUpperCase() +
+        ' [' + (new Date(msg.date_envoi)).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) + ']</div>';
+    return div;
+}
+function fetchAllMessages() {
+    if (!waMessages) {
+        console.error('Conteneur wa-messages introuvable');
         return;
     }
-    if (!navigator.mediaDevices) {
-        alert('L\'enregistrement audio n\'est pas supporté sur ce navigateur.');
-        return;
-    }
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = e => {
-            if (e.data.size > 0) audioChunks.push(e.data);
-        };
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'audio.webm');
-            formData.append('id_demande', idDemande);
-            // Envoi AJAX du message audio
-            fetch('discussion.php?demande=' + idDemande, {
-                method: 'POST',
-                body: formData
-            })
-            .then(() => location.reload())
-            .catch(() => alert('Erreur réseau lors de l\'envoi de l\'audio.'));
-        };
-        mediaRecorder.start();
-        recordBtn.classList.add('recording');
-        recordBtn.textContent = '⏹️';
-        waInput.disabled = true;
-        isRecording = true;
-    } catch (err) {
-        alert('Erreur lors de l\'accès au micro : ' + err.message);
-    }
-});
-// Empêcher l'envoi vide
-const waForm = document.getElementById('wa-form');
-waForm.addEventListener('submit', function(e) {
-    if (!waInput.value.trim()) {
-        e.preventDefault();
-    }
-});
+    fetch('get_messages.php?demande='+idDemande+'&last_id=0')
+        .then(r => r.json())
+        .then(data => {
+            if (data.messages) {
+                waMessages.innerHTML = '';
+                data.messages.forEach(msg => {
+                    waMessages.appendChild(renderMessage(msg));
+                    lastMsgId = msg.id;
+                });
+                waMessages.scrollTop = waMessages.scrollHeight;
+            }
+        })
+        .catch(e => { console.error('Erreur AJAX', e); });
+}
+setInterval(fetchAllMessages, 2000);
+fetchAllMessages(); // premier affichage immédiat
 </script>
 </body>
 </html>
