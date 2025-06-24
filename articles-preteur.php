@@ -1,3 +1,5 @@
+<!-- AFFICHE TOUS LES ARTICLES DU PRETEUR -->
+
 <?php
 require_once 'header.php';
 
@@ -151,7 +153,13 @@ function getEtatLabel($etat) {
                         <div class="card-title"><?php echo htmlspecialchars($article['nom']); ?></div>
                         <div class="card-detail"><?php echo nl2br(htmlspecialchars($article['detail'])); ?></div>
                         <span class="etat" style="background:<?php echo $etat[1]; ?>;color:#fff;">
-                            <?php echo $etat[0]; ?>
+                            <?php if ($article['etat'] == 3): ?>
+                                <a href="suivi_pret.php?id=<?php echo $article['id']; ?>" style="color:#fff;text-decoration:underline;">
+                                    <?php echo $etat[0]; ?>
+                                </a>
+                            <?php else: ?>
+                                <?php echo $etat[0]; ?>
+                            <?php endif; ?>
                         </span>
                         <button class="voir-infos-btn" data-index="<?php echo $index; ?>">Voir les infos</button>
                     </div>

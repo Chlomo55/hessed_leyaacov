@@ -1,3 +1,5 @@
+<!-- AFFICHE TOUS LES ARTICLES -->
+
 <?php
 require_once 'header.php';
 // Récupérer tous les articles validés (etat = 2)

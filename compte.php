@@ -1,10 +1,13 @@
+<!-- COMPTE DE L'USER -->
+
 <?php
-
 require_once 'header.php';
-
-// Récupérer les infos de l'utilisateur
+if (!isset($_SESSION['user_id'])) {
+    header('Location: connexion.php');
+    exit;
+}
 $user_id = $_SESSION['user_id'];
-$stmt = $pdo->prepare('SELECT nom, prenom, pseudo, num, mail, adresse, ville FROM users WHERE id = :id');
+$stmt = $pdo->prepare('SELECT nom, prenom, pseudo, num, mail, adresse, ville, type_logement, etage, interphone FROM users WHERE id = :id');
 $stmt->execute(['id' => $user_id]);
 $user = $stmt->fetch();
 
@@ -113,7 +116,14 @@ $nbNotif = $stmtNotif->fetchColumn();
                     <span style="position:absolute;top:-8px;right:-8px;background:#e74c3c;color:#fff;border-radius:50%;padding:4px 10px;font-size:0.95em;">+<?= $nbNotif ?></span>
                 <?php endif; ?>
             </a>
-            <a href="suivre_pret.php" class="action-btn">Suivre un prêt</a>
+            <?php
+            // Vérifier si l'utilisateur est prêteur (a-t-il au moins un article à prêter ?)
+            $stmtPreteur = $pdo->prepare('SELECT COUNT(*) FROM article WHERE id_preteur = ?');
+            $stmtPreteur->execute([$user_id]);
+            $isPreteur = $stmtPreteur->fetchColumn() > 0;
+            if ($isPreteur): ?>
+                <a href="suivre_pret.php" class="action-btn">Suivre un prêt</a>
+            <?php endif; ?>
             <a href="deconnexion.php" class="action-btn" style="background: #e74c3c;">Déconnexion</a>
         </div>
         <script>
