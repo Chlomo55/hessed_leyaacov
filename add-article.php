@@ -17,11 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $detail = trim($_POST['detail']);
     $pref = isset($_POST['pref']) ? implode(', ', $_POST['pref']) : '';
 
-    // Gestion des photos en LONGBLOB
+    // Gestion des photos : on enregistre le nom du fichier et on déplace le fichier dans uploads/
     $photos = array_fill(1, 5, null); // Par défaut, toutes les colonnes sont null
     for ($i = 1; $i <= 5; $i++) {
         if (isset($_FILES["photo_$i"]) && $_FILES["photo_$i"]['error'] === UPLOAD_ERR_OK) {
-            $photos[$i] = file_get_contents($_FILES["photo_$i"]['tmp_name']);
+            $ext = pathinfo($_FILES["photo_$i"]['name'], PATHINFO_EXTENSION);
+            $unique_name = 'photo_' . $i . '_' . uniqid() . '.' . $ext;
+            move_uploaded_file($_FILES["photo_$i"]['tmp_name'], __DIR__ . '/uploads/' . $unique_name);
+            $photos[$i] = $unique_name;
         }
     }
 
@@ -31,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->bindParam(2, $nom, PDO::PARAM_STR);
     $stmt->bindParam(3, $detail, PDO::PARAM_STR);
     for ($i = 1; $i <= 5; $i++) {
-        $stmt->bindParam($i+3, $photos[$i], PDO::PARAM_LOB);
+        $stmt->bindParam($i+3, $photos[$i], PDO::PARAM_STR);
     }
     $stmt->bindParam(9, $pref, PDO::PARAM_STR);
     $stmt->execute();
@@ -48,8 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com'; // À remplacer
         $mail->SMTPAuth = true;
-        $mail->Username = 'chlomo.freoua@gmail.com'; // À remplacer
-        $mail->Password = 'qbbnlygeawmdrsto'; // À remplacer
+        $mail->Username = 'chlomo.freoua@gmail.com';
+        $mail->Password = 'bpwotttwhkaqmmkl';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 

@@ -144,6 +144,24 @@ body {
 .wa-send-btn:hover {
     background: #128c7e;
 }
+.wa-start-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.1em;
+    background: #128c7e;
+    padding: 7px 16px;
+    border-radius: 8px;
+    position: absolute;
+    right: 18px;
+    top: 16px;
+    transition: background 0.2s;
+}
+.wa-start-btn:hover {
+    background: #075e54;
+}
 @media (max-width: 600px) {
     .whatsapp-container { max-width: 100vw; min-height: 100vh; }
     .wa-header { padding: 12px 6px; }
@@ -156,11 +174,11 @@ body {
         <div class="wa-avatar"><?= strtoupper(substr($demande['article_nom'],0,1)) ?></div>
         <div class="wa-header-info">
             <div class="wa-header-title">Article : <?= htmlspecialchars($demande['article_nom']) ?></div>
-            <div class="wa-header-sub">Avec <?= ($user_id == $demande['id_preteur'] ? $demande['emprunteur_prenom'] : $demande['preteur_prenom']) ?></div>
+            <div class="wa-header-sub">Avec <?= htmlspecialchars($demande['emprunteur_prenom']) ?></div>
         </div>
-        <?php if ($user_id == $demande['id_preteur']): ?>
-            <a href="commencer-pret.php?demande=<?= $id_demande ?>" style="color:#fff;text-decoration:none;font-size:1.1em;background:#128c7e;padding:7px 16px;border-radius:8px;">Commencer le prêt</a>
-        <?php endif; ?>
+        <a href="commencer-pret.php?demande=<?= $id_demande ?>" title="Commencer le prêt" class="wa-start-btn">
+            <span style="font-size:1.3em;vertical-align:middle;">&#9654;</span> <span style="font-size:1em;vertical-align:middle;">Commencer</span>
+        </a>
     </div>
     <div class="wa-messages" id="wa-messages">
         <?php foreach ($allMessages as $msg): ?>
@@ -200,7 +218,7 @@ function fetchAllMessages() {
     }
     fetch('get_messages.php?demande='+idDemande+'&last_id=0')
         .then(r => r.json())
-        .then(data => {
+        .then(function(data) {
             if (data.messages) {
                 waMessages.innerHTML = '';
                 data.messages.forEach(msg => {
@@ -210,7 +228,7 @@ function fetchAllMessages() {
                 waMessages.scrollTop = waMessages.scrollHeight;
             }
         })
-        .catch(e => { console.error('Erreur AJAX', e); });
+        .catch(function(e) { console.error('Erreur AJAX', e); });
 }
 setInterval(fetchAllMessages, 2000);
 fetchAllMessages(); // premier affichage immédiat
