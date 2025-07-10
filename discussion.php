@@ -7,10 +7,10 @@ if (!isset($_SESSION['user_id']) || !isset($_GET['demande'])) {
 $user_id = $_SESSION['user_id'];
 $id_demande = intval($_GET['demande']);
 // Vérifier que l'utilisateur est bien concerné par la demande
-$stmt = $pdo->prepare('SELECT d.*, a.nom as article_nom, a.id as article_id, u1.prenom as emprunteur_prenom, u1.nom as emprunteur_nom, u2.prenom as preteur_prenom, u2.nom as preteur_nom FROM demande d JOIN article a ON d.id_article = a.id JOIN users u1 ON d.id_emprunteur = u1.id JOIN users u2 ON d.id_preteur = u2.id WHERE d.id = ? AND (d.id_preteur = ? OR d.id_emprunteur = ?)');
-$stmt->execute([$id_demande, $user_id, $user_id]);
+$stmt = $pdo->prepare('SELECT d.*, a.nom as article_nom, a.id as article_id, u1.prenom as emprunteur_prenom, u1.nom as emprunteur_nom, u1.id as emprunteur_id, u2.prenom as preteur_prenom, u2.nom as preteur_nom, u2.id as preteur_id FROM demande d JOIN article a ON d.id_article = a.id JOIN users u1 ON d.id_emprunteur = u1.id JOIN users u2 ON d.id_preteur = u2.id WHERE d.id = ?');
+$stmt->execute([$id_demande]);
 $demande = $stmt->fetch();
-if (!$demande) {
+if (!$demande || ($user_id != $demande['preteur_id'] && $user_id != $demande['emprunteur_id'])) {
     echo "<p>Demande non trouvée ou accès refusé.</p>";
     exit;
 }

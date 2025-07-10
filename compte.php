@@ -122,7 +122,7 @@ $nbNotif = $stmtNotif->fetchColumn();
             $stmtPreteur->execute([$user_id]);
             $isPreteur = $stmtPreteur->fetchColumn() > 0;
             if ($isPreteur): ?>
-                <a href="suivre_pret.php" class="action-btn">Suivre un prêt</a>
+                <button id="show-prets" class="action-btn">Suivre un prêt</button>
             <?php endif; ?>
             <a href="deconnexion.php" class="action-btn" style="background: #e74c3c;">Déconnexion</a>
         </div>
@@ -141,5 +141,66 @@ $nbNotif = $stmtNotif->fetchColumn();
         });
         </script>
     </div>
+    <!-- MODALE SUIVI PRET -->
+    <div id="modal-prets" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:#fff;padding:32px 24px 24px 24px;border-radius:14px;max-width:420px;width:90vw;box-shadow:0 8px 32px rgba(78,84,200,0.18);position:relative;">
+            <span id="close-prets" style="position:absolute;top:12px;right:18px;cursor:pointer;font-size:28px;color:#e74c3c;font-weight:bold;">&times;</span>
+            <h3 style="margin-top:0;color:#4e54c8;text-align:center;">Mes prêts en cours</h3>
+            <div style="margin-top:18px;">
+            <?php
+            // Lister tous les prêts où l'utilisateur est prêteur ou emprunteur et article.etat=3
+            $stmtPrets = $pdo->prepare('SELECT d.id, a.nom as article_nom, d.date_retrait, d.date_retour, d.id_preteur, d.id_emprunteur FROM demande d JOIN article a ON d.id_article = a.id WHERE (d.id_preteur = ? OR d.id_emprunteur = ?) AND a.etat = 3 ORDER BY d.date_retrait DESC');
+            $stmtPrets->execute([$user_id, $user_id]);
+            $prets = $stmtPrets->fetchAll();
+            if (count($prets) === 0) {
+                echo '<div style="color:#888;text-align:center;">Aucun prêt en cours à suivre.</div>';
+            } else {
+                foreach ($prets as $pret) {
+                    echo '<div style="margin-bottom:16px;padding:10px 0;border-bottom:1px solid #eee;">';
+                    echo '<div style="font-weight:bold;color:#4e54c8;">' . htmlspecialchars($pret['article_nom']) . '</div>';
+                    echo '<div style="font-size:0.97em;color:#555;">Du ' . date('d/m/Y', strtotime($pret['date_retrait'])) . ' au ' . date('d/m/Y', strtotime($pret['date_retour'])) . '</div>';
+                    echo '<a href="suivre_pret.php?demande=' . $pret['id'] . '" class="btn-suivi" style="margin-top:8px;display:inline-block;">Voir le suivi</a>';
+                    echo '</div>';
+                }
+            }
+            ?>
+            </div>
+        </div>
+    </div>
+    <style>
+    .btn-suivi {
+        display: inline-block;
+        background: linear-gradient(90deg, #4e54c8 0%, #8f94fb 100%);
+        color: #fff;
+        padding: 8px 18px;
+        border-radius: 8px;
+        font-weight: bold;
+        text-decoration: none;
+        transition: background 0.3s;
+        margin: 6px 0;
+    }
+    .btn-suivi:hover {
+        background: linear-gradient(90deg, #8f94fb 0%, #4e54c8 100%);
+        color: #fff;
+    }
+    </style>
+    <script>
+    const showPretsBtn = document.getElementById('show-prets');
+    const modalPrets = document.getElementById('modal-prets');
+    const closePrets = document.getElementById('close-prets');
+    if (showPretsBtn) {
+        showPretsBtn.addEventListener('click', function() {
+            modalPrets.style.display = 'flex';
+        });
+    }
+    if (closePrets) {
+        closePrets.addEventListener('click', function() {
+            modalPrets.style.display = 'none';
+        });
+    }
+    window.addEventListener('click', function(e) {
+        if (e.target === modalPrets) modalPrets.style.display = 'none';
+    });
+    </script>
 </body>
 </html>
