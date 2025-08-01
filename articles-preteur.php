@@ -29,6 +29,8 @@ function getEtatLabel($etat) {
             return ['Validé', '#2ecc40']; // Vert
         case 3:
             return ['En cours de prêt', '#2986cc']; // Bleu
+        case 4:
+            return ['En attente d\'annulation', '#f1c40f']; // Jaune
         default:
             return ['Inconnu', '#888'];
     }
@@ -162,6 +164,14 @@ function getEtatLabel($etat) {
                             <?php endif; ?>
                         </span>
                         <button class="voir-infos-btn" data-index="<?php echo $index; ?>">Voir les infos</button>
+                        <form method="get" action="delete-article.php" style="display:inline;">
+                            <input type="hidden" name="id" value="<?php echo $article['id']; ?>">
+                            <button type="submit" style="background:#e74c3c;color:#fff;padding:7px 16px;border:none;border-radius:6px;cursor:pointer;margin-left:8px;">Annuler</button>
+                        </form>
+                        <form method="get" action="update-article.php" style="display:inline;">
+                            <input type="hidden" name="id" value="<?php echo $article['id']; ?>">
+                            <button type="submit" style="background:#2986cc;color:#fff;padding:7px 16px;border:none;border-radius:6px;cursor:pointer;margin-left:8px;">Modifier</button>
+                        </form>
                     </div>
                     <div class="flip-card-back">
                         <div class="carousel" id="carousel-<?php echo $index; ?>">

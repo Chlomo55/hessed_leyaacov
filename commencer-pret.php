@@ -18,36 +18,62 @@ if (!$demande || $user_id != $demande['id_preteur']) {
 
 // Traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['certif_pret']) && isset($_POST['certif_caution'])) {
-    // Mettre à jour l'état de l'article
-    $stmt = $pdo->prepare('UPDATE article SET etat = 3 WHERE id = ?');
-    $stmt->execute([$demande['article_id']]);
+    // Vérification de la photo du chèque
+    if (!isset($_FILES['photo_cheque']) || $_FILES['photo_cheque']['error'] !== UPLOAD_ERR_OK) {
+        echo '<div style="color:red;text-align:center;margin-bottom:18px;">Veuillez ajouter une photo du chèque de caution pour lancer le prêt.</div>';
+    } else {
+        // Vérification de la date de début
+        $date_debut_base = date('Y-m-d', strtotime($demande['date_retrait']));
+        $date_aujourdhui = date('Y-m-d');
+        if ($date_aujourdhui < $date_debut_base && !isset($_POST['confirme_debut_avance'])) {
+            echo '<div style="color:red;text-align:center;margin-bottom:18px;">La date de début du prêt est prévue le '.date('d/m/Y', strtotime($demande['date_retrait'])).'.<br>Veuillez cocher la case de confirmation pour commencer le prêt plus tôt.</div>';
+        } else {
+            // Sauvegarde de la photo
+            $ext = pathinfo($_FILES['photo_cheque']['name'], PATHINFO_EXTENSION);
+            $unique_name = 'cheque_' . $id_demande . '_' . uniqid() . '.' . $ext;
+            $upload_path = __DIR__ . '/uploads/' . $unique_name;
+            move_uploaded_file($_FILES['photo_cheque']['tmp_name'], $upload_path);
+            // Mettre à jour l'état de l'article
+            $stmt = $pdo->prepare('UPDATE article SET etat = 1 WHERE id = ?');
+            $stmt->execute([$demande['article_id']]);
 
-    // Envoi du mail avec PHPMailer
-    require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/PHPMailer.php';
-    require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/SMTP.php';
-    require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/Exception.php';
-    
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-    try {
-        // Paramètres SMTP Gmail (à adapter avec tes identifiants)
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'chlomo.freoua@gmail.com';
-        $mail->Password = 'bpwotttwhkaqmmkl';
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
-        $mail->CharSet = 'UTF-8';
+            // Enregistrer le prêt dans la table prets
+            $stmt = $pdo->prepare('INSERT INTO prets (article, emprunteur, date_debut, date_fin) VALUES (?, ?, ?, ?)');
+            $stmt->execute([
+                $demande['article_id'],
+                $demande['emprunteur_pseudo'],
+                date('Y-m-d H:i:s'),
+                date('Y-m-d H:i:s', strtotime($demande['date_retour']))
+            ]);
 
-        $mail->setFrom('noreply@hessed-leyaacov.fr', 'Hessed Leyaacov');
-        $mail->addAddress($demande['preteur_mail']);
-        $mail->addAddress($demande['emprunteur_mail']);
-        $mail->Subject = 'Le prêt a commencé !';
-        $mail->Body = "Bonjour,\n\nLe prêt de l'article '" . $demande['article_nom'] . "' vient de commencer.\n\nRésumé :\n- Article : " . $demande['article_nom'] . "\n- Détail : " . $demande['article_detail'] . "\n- Emprunteur : " . $demande['emprunteur_prenom'] . ' ' . $demande['emprunteur_nom'] . " (pseudo : " . $demande['emprunteur_pseudo'] . ")\n- Prêteur : " . $demande['preteur_prenom'] . ' ' . $demande['preteur_nom'] . " (pseudo : " . $demande['preteur_pseudo'] . ")\n- Montant de la caution : " . $demande['caution'] . " €\n- Date de début : " . date('d/m/Y', strtotime($demande['date_retrait'])) . "\n- Date de retour prévue : " . date('d/m/Y', strtotime($demande['date_retour'])) . "\n\nBon prêt à tous !";
-        $mail->send();
-        echo '<div style="padding:2em;text-align:center;">Le prêt a bien été lancé et un mail a été envoyé aux deux parties.<br><a href="index.php">Retour à l\'accueil</a></div>';
-    } catch (Exception $e) {
-        echo '<div style="padding:2em;text-align:center;color:red;">Erreur lors de l\'envoi du mail : ' . $mail->ErrorInfo . '</div>';
+            // Envoi du mail avec PHPMailer
+            require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/PHPMailer.php';
+            require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/SMTP.php';
+            require_once __DIR__ . '/vendor/phpmailer/phpmailer/src/Exception.php';
+            
+            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+            try {
+                // Paramètres SMTP Gmail (à adapter avec tes identifiants)
+                $mail->isSMTP();
+                $mail->Host = 'smtp.gmail.com';
+                $mail->SMTPAuth = true;
+                $mail->Username = 'chlomo.freoua@gmail.com';
+                $mail->Password = 'bpwotttwhkaqmmkl';
+                $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port = 587;
+                $mail->CharSet = 'UTF-8';
+
+                $mail->setFrom('noreply@hessed-leyaacov.fr', 'Hessed Leyaacov');
+                $mail->addAddress($demande['preteur_mail']);
+                $mail->addAddress($demande['emprunteur_mail']);
+                $mail->Subject = 'Le prêt a commencé !';
+                $mail->Body = "Bonjour,\n\nLe prêt de l'article '" . $demande['article_nom'] . "' vient de commencer.\n\nRésumé :\n- Article : " . $demande['article_nom'] . "\n- Détail : " . $demande['article_detail'] . "\n- Emprunteur : " . $demande['emprunteur_prenom'] . ' ' . $demande['emprunteur_nom'] . " (pseudo : " . $demande['emprunteur_pseudo'] . ")\n- Prêteur : " . $demande['preteur_prenom'] . ' ' . $demande['preteur_nom'] . " (pseudo : " . $demande['preteur_pseudo'] . ")\n- Montant de la caution : " . $demande['caution'] . " €\n- Date de début : " . date('d/m/Y', strtotime($demande['date_retrait'])) . "\n- Date de retour prévue : " . date('d/m/Y', strtotime($demande['date_retour'])) . "\n\nBon prêt à tous !";
+                $mail->send();
+                echo '<div style="padding:2em;text-align:center;">Le prêt a bien été lancé et un mail a été envoyé aux deux parties.<br><a href="index.php">Retour à l\'accueil</a></div>';
+            } catch (Exception $e) {
+                echo '<div style="padding:2em;text-align:center;color:red;">Erreur lors de l\'envoi du mail : ' . $mail->ErrorInfo . '</div>';
+            }
+        }
     }
     exit;
 }
@@ -74,10 +100,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['certif_pret']) && iss
     <div class="pret-info"><span class="pret-label">Article :</span> <?= htmlspecialchars($demande['article_nom']) ?></div>
     <div class="pret-info"><span class="pret-label">Détail :</span> <?= nl2br(htmlspecialchars($demande['article_detail'])) ?></div>
     <div class="pret-info"><span class="pret-label">Emprunteur :</span> <?= htmlspecialchars($demande['emprunteur_prenom'] . ' ' . $demande['emprunteur_nom']) ?> (pseudo : <?= htmlspecialchars($demande['emprunteur_pseudo']) ?>)</div>
-    <div class="pret-info"><span class="pret-label">Date de début :</span> <?= date('d/m/Y', strtotime($demande['date_retrait'])) ?></div>
-    <div class="pret-info"><span class="pret-label">Date de retour prévue :</span> <?= date('d/m/Y', strtotime($demande['date_retour'])) ?></div>
+    <div class="pret-info"><span class="pret-label">Date de début :</span> <?= date('d/m/Y', strtotime($demande['date_retrait'])) ?> à <?= isset($demande['heure_retrait']) ? htmlspecialchars(substr($demande['heure_retrait'],0,5)) : '' ?></div>
+    <div class="pret-info"><span class="pret-label">Date de retour prévue :</span> <?= date('d/m/Y', strtotime($demande['date_retour'])) ?> à <?= isset($demande['heure_retour']) ? htmlspecialchars(substr($demande['heure_retour'],0,5)) : '' ?></div>
     <div class="pret-info"><span class="pret-label">Montant de la caution :</span> <?= htmlspecialchars($demande['caution']) ?> €</div>
-    <form method="post" id="pret-form">
+    <?php if (date('Y-m-d') < date('Y-m-d', strtotime($demande['date_retrait']))): ?>
+    <div id="alerte-debut-avance" style="color:red;text-align:center;margin-bottom:18px;display:block;">
+        La date de début du prêt est prévue le <?= date('d/m/Y', strtotime($demande['date_retrait'])) ?>.<br>
+        Veuillez cocher la case de confirmation pour commencer le prêt plus tôt.
+    </div>
+    <?php endif; ?>
+    <form method="post" id="pret-form" enctype="multipart/form-data">
         <div class="pret-checkbox">
             <input type="checkbox" id="certif_pret" name="certif_pret">
             <label for="certif_pret">Je certifie vouloir commencer le prêt immédiatement</label>
@@ -86,6 +118,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['certif_pret']) && iss
             <input type="checkbox" id="certif_caution" name="certif_caution">
             <label for="certif_caution">Je certifie avoir bien récupéré le chèque de caution de <?= htmlspecialchars($demande['caution']) ?> €</label>
         </div>
+        <div class="pret-checkbox">
+            <label for="photo_cheque">Photo du chèque de caution&nbsp;:</label>
+            <input type="file" id="photo_cheque" name="photo_cheque" accept="image/*" required>
+        </div>
+        <?php if (date('Y-m-d') < date('Y-m-d', strtotime($demande['date_retrait']))): ?>
+        <div class="pret-checkbox">
+            <input type="checkbox" id="confirme_debut_avance" name="confirme_debut_avance">
+            <label for="confirme_debut_avance">Je confirme vouloir commencer le prêt avant la date prévue (<?= date('d/m/Y', strtotime($demande['date_retrait'])) ?>)</label>
+        </div>
+        <?php endif; ?>
         <button type="submit" class="pret-btn" id="pret-btn" disabled>Commencer</button>
     </form>
 </div>
@@ -98,6 +140,17 @@ function checkForm() {
 }
 certifPret.addEventListener('change', checkForm);
 certifCaution.addEventListener('change', checkForm);
+
+// Gestion dynamique de l'alerte début avancé
+const confirmeDebutAvance = document.getElementById('confirme_debut_avance');
+const alerteDebutAvance = document.getElementById('alerte-debut-avance');
+if (confirmeDebutAvance && alerteDebutAvance) {
+    function checkAlerte() {
+        alerteDebutAvance.style.display = confirmeDebutAvance.checked ? 'none' : 'block';
+    }
+    confirmeDebutAvance.addEventListener('change', checkAlerte);
+    checkAlerte();
+}
 </script>
 </body>
 </html>

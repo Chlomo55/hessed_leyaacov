@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : mar. 08 juil. 2025 à 05:40
+-- Généré le : jeu. 31 juil. 2025 à 15:17
 -- Version du serveur : 8.0.31
 -- Version de PHP : 8.0.26
 
@@ -35,12 +35,16 @@ CREATE TABLE IF NOT EXISTS `article` (
   `detail` text NOT NULL,
   `photo_1` longblob NOT NULL,
   `photo_2` longblob NOT NULL,
-  `photo_3` longblob NOT NULL,
-  `photo_4` longblob NOT NULL,
-  `photo_5` longblob NOT NULL,
+  `photo_3` longblob,
+  `photo_4` longblob,
+  `photo_5` longblob,
   `pref` text NOT NULL,
   `caution` int NOT NULL,
   `etat` int NOT NULL,
+  `heure_retrait_debut` time DEFAULT NULL,
+  `heure_retrait_fin` time DEFAULT NULL,
+  `heure_retour_debut` time DEFAULT NULL,
+  `heure_retour_fin` time DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -61,6 +65,9 @@ CREATE TABLE IF NOT EXISTS `demande` (
   `message` text NOT NULL,
   `statut` tinyint DEFAULT '0',
   `date_demande` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `heure_retrait` time DEFAULT NULL,
+  `heure_retour` time DEFAULT NULL,
+  `lu` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `id_article` (`id_article`),
   KEY `id_preteur` (`id_preteur`),

@@ -27,9 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
     header('Location: discussion.php?demande=' . $id_demande);
     exit;
 }
-// Récupérer l'historique complet des échanges entre CE prêteur et CET emprunteur pour CET article
-$stmtAll = $pdo->prepare('SELECT m.*, u.prenom, u.nom FROM messages m JOIN users u ON m.id_expediteur = u.id WHERE m.id_preteur = ? AND m.id_emprunteur = ? AND m.id_demande IN (SELECT id FROM demande WHERE id_article = ?) ORDER BY m.date_envoi ASC');
-$stmtAll->execute([$demande['id_preteur'], $demande['id_emprunteur'], $demande['article_id']]);
+// Récupérer l'historique complet des échanges pour CETTE demande
+$stmtAll = $pdo->prepare('SELECT m.*, u.prenom, u.nom FROM messages m JOIN users u ON m.id_expediteur = u.id WHERE m.id_demande = ? ORDER BY m.date_envoi ASC');
+$stmtAll->execute([$id_demande]);
 $allMessages = $stmtAll->fetchAll();
 // Pour la notification visuelle : récupérer l'ID du dernier message
 $lastMsgId = !empty($allMessages) ? end($allMessages)['id'] : 0;
@@ -181,6 +181,17 @@ body {
         </a>
     </div>
     <div class="wa-messages" id="wa-messages">
+        <?php
+        // Afficher le message initial de demande de l'emprunteur
+        if (!empty($demande['message'])): ?>
+            <div class="wa-bubble other" style="background:#fff;border:2px solid #4e54c8;">
+                <?= nl2br(htmlspecialchars($demande['message'])) ?>
+                <div class="wa-meta">
+                    <?= htmlspecialchars($demande['emprunteur_prenom'] . ' ' . strtoupper(substr($demande['emprunteur_nom'],0,1))) ?>
+                    [Demande initiale]
+                </div>
+            </div>
+        <?php endif; ?>
         <?php foreach ($allMessages as $msg): ?>
             <div class="wa-bubble <?= $msg['id_expediteur'] == $user_id ? 'me' : 'other' ?>">
                 <?= nl2br(htmlspecialchars($msg['message'])) ?>
@@ -201,15 +212,18 @@ const waMessages = document.getElementById('wa-messages');
 let idUser = <?php echo json_encode($user_id); ?>;
 let idDemande = <?php echo json_encode($id_demande); ?>;
 let lastMsgId = 0;
+let lastMessagesContent = '';
+const demandeInitiale = <?php echo json_encode(!empty($demande['message']) ? [
+    'message' => $demande['message'],
+    'prenom' => $demande['emprunteur_prenom'],
+    'nom' => $demande['emprunteur_nom'],
+    'type' => 'initiale'
+] : null); ?>;
 function renderMessage(msg) {
-    const div = document.createElement('div');
-    div.className = 'wa-bubble ' + (msg.id_expediteur == idUser ? 'me' : 'other');
-    div.innerHTML =
-        (msg.message ? (msg.message.replace(/\n/g, '<br>')) : '') +
-        '<div class="wa-meta">' +
-        msg.prenom + ' ' + msg.nom.charAt(0).toUpperCase() +
-        ' [' + (new Date(msg.date_envoi)).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) + ']</div>';
-    return div;
+    if (msg.type === 'initiale') {
+        return `<div class='wa-bubble other' style='background:#fff;border:2px solid #4e54c8;'>${msg.message.replace(/\n/g,'<br>')}<div class='wa-meta'>${msg.prenom} ${msg.nom.charAt(0).toUpperCase()} [Demande initiale]</div></div>`;
+    }
+    return `<div class='wa-bubble ${msg.id_expediteur == idUser ? 'me' : 'other'}'>${msg.message ? msg.message.replace(/\n/g,'<br>') : ''}<div class='wa-meta'>${msg.prenom} ${msg.nom.charAt(0).toUpperCase()} [${new Date(msg.date_envoi).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}]</div></div>`;
 }
 function fetchAllMessages() {
     if (!waMessages) {
@@ -219,19 +233,47 @@ function fetchAllMessages() {
     fetch('get_messages.php?demande='+idDemande+'&last_id=0')
         .then(r => r.json())
         .then(function(data) {
+            let html = '';
+            if (demandeInitiale) {
+                html += renderMessage(demandeInitiale);
+            }
             if (data.messages) {
-                waMessages.innerHTML = '';
                 data.messages.forEach(msg => {
-                    waMessages.appendChild(renderMessage(msg));
+                    html += renderMessage(msg);
                     lastMsgId = msg.id;
                 });
+            }
+            if (html !== lastMessagesContent) {
+                waMessages.innerHTML = html;
                 waMessages.scrollTop = waMessages.scrollHeight;
+                lastMessagesContent = html;
             }
         })
         .catch(function(e) { console.error('Erreur AJAX', e); });
 }
 setInterval(fetchAllMessages, 2000);
 fetchAllMessages(); // premier affichage immédiat
+// ENVOI INSTANTANÉ DU MESSAGE
+const waForm = document.getElementById('wa-form');
+const waInput = document.getElementById('wa-input');
+waForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const message = waInput.value.trim();
+    if (!message) return;
+    fetch('send_message.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'demande='+encodeURIComponent(idDemande)+'&message='+encodeURIComponent(message)
+    })
+    .then(r => r.json())
+    .then(function(data) {
+        if (data.success) {
+            waInput.value = '';
+            fetchAllMessages(); // Rafraîchit la liste des messages juste après l'envoi
+        }
+    })
+    .catch(function(e) { console.error('Erreur envoi', e); });
+});
 </script>
 </body>
 </html>

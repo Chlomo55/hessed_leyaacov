@@ -16,59 +16,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nom = trim($_POST['nom']);
     $detail = trim($_POST['detail']);
     $pref = isset($_POST['pref']) ? implode(', ', $_POST['pref']) : '';
+    $caution = isset($_POST['caution']) ? trim($_POST['caution']) : null;
+    $heure_retrait_debut = $_POST['heure_retrait_debut'] ?? '';
+    $heure_retrait_fin = $_POST['heure_retrait_fin'] ?? '';
+    $heure_retour_debut = $_POST['heure_retour_debut'] ?? '';
+    $heure_retour_fin = $_POST['heure_retour_fin'] ?? '';
+    if (!preg_match('/^\d+$/', $caution)) {
+        $error = "La caution doit être un nombre uniquement.";
+    } else {
+        // Gestion des photos : on enregistre le nom du fichier et on déplace le fichier dans uploads/
+        $photos = array_fill(1, 5, null); // Par défaut, toutes les colonnes sont null
+        $nb_photos = 0;
+        for ($i = 1; $i <= 5; $i++) {
+            if (isset($_FILES["photo_$i"]) && $_FILES["photo_$i"]['error'] === UPLOAD_ERR_OK) {
+                $ext = pathinfo($_FILES["photo_$i"]['name'], PATHINFO_EXTENSION);
+                $unique_name = 'photo_' . $i . '_' . uniqid() . '.' . $ext;
+                move_uploaded_file($_FILES["photo_$i"]['tmp_name'], __DIR__ . '/uploads/' . $unique_name);
+                $photos[$i] = $unique_name;
+                $nb_photos++;
+            }
+        }
 
-    // Gestion des photos : on enregistre le nom du fichier et on déplace le fichier dans uploads/
-    $photos = array_fill(1, 5, null); // Par défaut, toutes les colonnes sont null
-    for ($i = 1; $i <= 5; $i++) {
-        if (isset($_FILES["photo_$i"]) && $_FILES["photo_$i"]['error'] === UPLOAD_ERR_OK) {
-            $ext = pathinfo($_FILES["photo_$i"]['name'], PATHINFO_EXTENSION);
-            $unique_name = 'photo_' . $i . '_' . uniqid() . '.' . $ext;
-            move_uploaded_file($_FILES["photo_$i"]['tmp_name'], __DIR__ . '/uploads/' . $unique_name);
-            $photos[$i] = $unique_name;
+        // Vérification : au moins 2 photos requises
+        if ($nb_photos < 2) {
+            $error = "Veuillez sélectionner au moins 2 images pour ajouter un article.";
+        } else {
+            // Insertion en base avec etat à 0
+            $stmt = $pdo->prepare("INSERT INTO article (id_preteur, nom, detail, photo_1, photo_2, photo_3, photo_4, photo_5, pref, caution, etat, heure_retrait_debut, heure_retrait_fin, heure_retour_debut, heure_retour_fin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
+            $stmt->bindParam(1, $id_preteur, PDO::PARAM_INT);
+            $stmt->bindParam(2, $nom, PDO::PARAM_STR);
+            $stmt->bindParam(3, $detail, PDO::PARAM_STR);
+            for ($i = 1; $i <= 5; $i++) {
+                $stmt->bindParam($i+3, $photos[$i], PDO::PARAM_STR);
+            }
+            $stmt->bindParam(9, $pref, PDO::PARAM_STR);
+            $stmt->bindParam(10, $caution, PDO::PARAM_INT);
+            $stmt->bindParam(11, $heure_retrait_debut, PDO::PARAM_STR);
+            $stmt->bindParam(12, $heure_retrait_fin, PDO::PARAM_STR);
+            $stmt->bindParam(13, $heure_retour_debut, PDO::PARAM_STR);
+            $stmt->bindParam(14, $heure_retour_fin, PDO::PARAM_STR);
+            $stmt->execute();
+
+            // Récupérer l'email du prêteur
+            $stmt_mail = $pdo->prepare("SELECT mail FROM users WHERE id = ?");
+            $stmt_mail->execute([$id_preteur]);
+            $mail_preteur = $stmt_mail->fetchColumn();
+
+            // Envoi du mail via PHPMailer
+            $mail = new PHPMailer(true);
+            try {
+                // Paramètres SMTP à adapter selon ton hébergeur
+                $mail->isSMTP();
+                $mail->Host = 'smtp.gmail.com'; // À remplacer
+                $mail->SMTPAuth = true;
+                $mail->Username = 'chlomo.freoua@gmail.com';
+                $mail->Password = 'bpwotttwhkaqmmkl';
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port = 587;
+
+                $mail->setFrom('no-reply@tonsite.com', 'Hessed Leyaacov');
+                $mail->addAddress($mail_preteur);
+
+                $mail->isHTML(true);
+                $mail->Subject = 'Votre article a bien été soumis';
+                $mail->Body = "Bonjour,<br><br>Votre article <b>$nom</b> a bien été envoyé et est en attente de validation.<br><br>L'équipe Hessed Leyaacov.";
+
+                $mail->send();
+            } catch (Exception $e) {
+                // Optionnel : afficher une erreur ou loguer
+            }
+
+            $success = true;
         }
     }
-
-    // Insertion en base avec etat à 0
-    $stmt = $pdo->prepare("INSERT INTO article (id_preteur, nom, detail, photo_1, photo_2, photo_3, photo_4, photo_5, pref, etat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
-    $stmt->bindParam(1, $id_preteur, PDO::PARAM_INT);
-    $stmt->bindParam(2, $nom, PDO::PARAM_STR);
-    $stmt->bindParam(3, $detail, PDO::PARAM_STR);
-    for ($i = 1; $i <= 5; $i++) {
-        $stmt->bindParam($i+3, $photos[$i], PDO::PARAM_STR);
-    }
-    $stmt->bindParam(9, $pref, PDO::PARAM_STR);
-    $stmt->execute();
-
-    // Récupérer l'email du prêteur
-    $stmt_mail = $pdo->prepare("SELECT mail FROM users WHERE id = ?");
-    $stmt_mail->execute([$id_preteur]);
-    $mail_preteur = $stmt_mail->fetchColumn();
-
-    // Envoi du mail via PHPMailer
-    $mail = new PHPMailer(true);
-    try {
-        // Paramètres SMTP à adapter selon ton hébergeur
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com'; // À remplacer
-        $mail->SMTPAuth = true;
-        $mail->Username = 'chlomo.freoua@gmail.com';
-        $mail->Password = 'bpwotttwhkaqmmkl';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
-
-        $mail->setFrom('no-reply@tonsite.com', 'Hessed Leyaacov');
-        $mail->addAddress($mail_preteur);
-
-        $mail->isHTML(true);
-        $mail->Subject = 'Votre article a bien été soumis';
-        $mail->Body = "Bonjour,<br><br>Votre article <b>$nom</b> a bien été envoyé et est en attente de validation.<br><br>L'équipe Hessed Leyaacov.";
-
-        $mail->send();
-    } catch (Exception $e) {
-        // Optionnel : afficher une erreur ou loguer
-    }
-
-    $success = true;
 }
 ?>
 
@@ -299,24 +319,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Article ajouté avec succès ! Un mail de confirmation vous a été envoyé.<br>
             <button id="add-another">Ajouter un autre article</button>
         </div>
+        <div id="php-photo-error" class="error-message" style="display:<?php echo isset($error) ? 'block' : 'none'; ?>;">
+            <?php echo isset($error) ? $error : ''; ?>
+        </div>
         <form id="add-article-form" method="post" enctype="multipart/form-data" style="display:<?php echo isset($success) ? 'none' : 'block'; ?>;">
             <div class="form-row">
                 <div class="form-col">
-                    <label>Nom :<br>
+                    <label>Article :<br>
                         <input type="text" name="nom" required>
                     </label>
                 </div>
                 <div class="form-col">
-                    <label>Détail :<br>
+                    <label>Description :<br>
                         <textarea name="detail" required></textarea>
                     </label>
                 </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Caution (€) :<br>
+                        <input type="text" name="caution" id="caution" required pattern="\d+" maxlength="8" inputmode="numeric" autocomplete="off">
+                    </label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Plage horaire souhaitée pour le retrait :<br>
+                        <input type="time" name="heure_retrait_debut" required> à <input type="time" name="heure_retrait_fin" required>
+                    </label>
+                </div>
+                <div class="form-col">
+                    <label>Plage horaire souhaitée pour le retour :<br>
+                        <input type="time" name="heure_retour_debut" required> à <input type="time" name="heure_retour_fin" required>
+                    </label>
+                </div>
+            </div>
+            <div id="photos-info" style="margin-bottom:10px; color:#4e54c8; font-weight:600; font-size:1.08em; background:#f0f4ff; border-radius:8px; padding:8px 14px;">
+                ⚠️ Veuillez ajouter au minimum <b>2 photos</b> pour valider votre article.
             </div>
             <div id="photos">
                 <div class="photo-div">
                     <label>Photo 1 :
                         <input type="file" name="photo_1" accept="image/*" onchange="previewImage(this, 1)">
                         <img id="preview_1" src="" alt="Prévisualisation" style="display:none;width:90px;height:90px;object-fit:cover;border:2px solid #4e54c8;border-radius:10px;background:#eee;box-shadow:0 2px 8px rgba(78,84,200,0.10);" />
+                    </label>
+                </div>
+                <div class="photo-div">
+                    <label>Photo 2 :
+                        <input type="file" name="photo_2" accept="image/*" onchange="previewImage(this, 2)">
+                        <img id="preview_2" src="" alt="Prévisualisation" style="display:none;width:90px;height:90px;object-fit:cover;border:2px solid #4e54c8;border-radius:10px;background:#eee;box-shadow:0 2px 8px rgba(78,84,200,0.10);" />
                     </label>
                 </div>
             </div>
@@ -333,9 +384,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
-        let photoCount = 1;
+        let photoCount = 2;
         let maxPhotos = 5;
-        let photoNumbers = [1]; // Numéros utilisés
+        let photoNumbers = [1,2]; // Numéros utilisés
 
         function getNextPhotoNumber() {
             for (let i = 1; i <= maxPhotos; i++) {
@@ -350,51 +401,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             photoNumbers = [];
             photoDivs.forEach((div, idx) => {
                 const num = idx + 1;
-                // Récupérer les éléments existants
-                const oldInput = div.querySelector('input[type="file"]');
-                const oldImg = div.querySelector('img');
-                // Créer un nouveau label
-                const label = document.createElement('label');
-                label.innerText = `Photo ${num} :`;
-                // Créer un nouvel input file
-                const input = document.createElement('input');
-                input.type = 'file';
+                // Récupérer l'input et l'image existants
+                const input = div.querySelector('input[type="file"]');
+                const img = div.querySelector('img');
+                // Mettre à jour le label
+                const label = div.querySelector('label');
+                label.childNodes[0].nodeValue = `Photo ${num} :`;
+                // Mettre à jour le nom et l'attribut onchange de l'input
                 input.name = `photo_${num}`;
-                input.accept = 'image/*';
-                input.onchange = function() { previewImage(this, num); };
-                // Si un fichier était déjà sélectionné, le conserver (non possible pour file input, mais on garde l'objet input)
-                // Créer une nouvelle image
-                const img = document.createElement('img');
+                input.setAttribute('onchange', `previewImage(this, ${num})`);
+                // Mettre à jour l'id de l'image
                 img.id = `preview_${num}`;
+                // Mettre à jour l'attribut alt
                 img.alt = 'Prévisualisation';
-                img.style.display = oldImg && oldImg.style.display === 'inline-block' ? 'inline-block' : 'none';
-                img.style.width = '90px';
-                img.style.height = '90px';
-                img.style.objectFit = 'cover';
-                img.style.border = '2px solid #4e54c8';
-                img.style.borderRadius = '10px';
-                img.style.background = '#eee';
-                img.style.boxShadow = '0 2px 8px rgba(78,84,200,0.10)';
-                if (oldImg && oldImg.src) img.src = oldImg.src;
-                // Ajouter input et img au label
-                label.appendChild(document.createTextNode(' '));
-                label.appendChild(input);
-                label.appendChild(img);
-                // Nettoyer le div
-                div.innerHTML = '';
-                div.appendChild(label);
-                // Ajout de la croix sauf pour le premier champ
-                if (photoDivs.length > 1) {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'remove-photo';
-                    btn.innerHTML = '&times;';
+                // Mettre à jour le bouton croix
+                const btn = div.querySelector('.remove-photo');
+                if (btn) {
                     btn.onclick = function() {
-                        div.remove();
-                        reorderPhotoFields();
-                        document.getElementById('add-photo').disabled = false;
+                        if (document.querySelectorAll('.photo-div').length > 2) {
+                            div.remove();
+                            reorderPhotoFields();
+                            document.getElementById('add-photo').disabled = false;
+                        }
                     };
-                    div.appendChild(btn);
                 }
                 photoNumbers.push(num);
             });
@@ -402,29 +431,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('add-photo').disabled = (photoCount >= maxPhotos);
         }
 
-        document.getElementById('add-photo').onclick = function() {
-            if (photoCount >= maxPhotos) return;
-            const num = getNextPhotoNumber();
-            if (!num) return;
+        // Ajout d'un champ photo sans toucher aux autres
+        function addPhotoField(num) {
             const div = document.createElement('div');
             div.className = 'photo-div';
             div.innerHTML = `<label>Photo ${num} :\n                <input type="file" name="photo_${num}" accept="image/*" onchange="previewImage(this, ${num})">\n                <img id="preview_${num}" src="" alt="Prévisualisation" style="display:none;width:90px;height:90px;object-fit:cover;border:2px solid #4e54c8;border-radius:10px;background:#eee;box-shadow:0 2px 8px rgba(78,84,200,0.10);" />`;
-            // Ajout de la croix
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'remove-photo';
-            btn.innerHTML = '&times;';
-            btn.onclick = function() {
-                div.remove();
-                reorderPhotoFields();
-                document.getElementById('add-photo').disabled = false;
-            };
-            div.appendChild(btn);
+            // Ajout de la croix si plus de 2 champs
+            if (photoCount >= 2) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'remove-photo';
+                btn.innerHTML = '&times;';
+                btn.onclick = function() {
+                    if (document.querySelectorAll('.photo-div').length > 2) {
+                        div.remove();
+                        reorderPhotoFields();
+                        document.getElementById('add-photo').disabled = false;
+                    }
+                };
+                div.appendChild(btn);
+            }
             document.getElementById('photos').appendChild(div);
             photoNumbers.push(num);
             photoCount++;
-            if (photoCount >= maxPhotos) this.disabled = true;
+            if (photoCount >= maxPhotos) document.getElementById('add-photo').disabled = true;
             reorderPhotoFields();
+        }
+
+        // Initialisation : 2 champs
+        window.addEventListener('DOMContentLoaded', function() {
+            photoCount = document.querySelectorAll('.photo-div').length;
+            photoNumbers = Array.from({length: photoCount}, (_, i) => i+1);
+            document.getElementById('add-photo').disabled = (photoCount >= maxPhotos);
+            reorderPhotoFields();
+        });
+
+        document.getElementById('add-photo').onclick = function() {
+            if (photoCount >= maxPhotos) return;
+            const num = photoCount + 1;
+            addPhotoField(num);
         };
 
         function previewImage(input, num) {
@@ -444,6 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Validation des champs photo à la soumission
+        // On exige au moins 2 champs photos présents et remplis
         document.getElementById('add-article-form').onsubmit = function(e) {
             let error = '';
             const photoDivs = Array.from(document.getElementById('photos').querySelectorAll('.photo-div'));
@@ -471,6 +517,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Initialisation : ajoute la croix si plus d'un champ
         reorderPhotoFields();
+
+        // Blocage des lettres dans le champ caution
+        const cautionInput = document.getElementById('caution');
+        cautionInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^\d]/g, '');
+        });
     </script>
 </body>
 </html>

@@ -92,12 +92,13 @@ $nbNotif = $stmtNotif->fetchColumn();
     </style>
 </head>
 <body>
-    <div class="compte-container">
-        <div class="compte-header">
-            <h2>Bienvenue, <?php echo htmlspecialchars($user['prenom']); ?> !</h2>
-            <p>Votre espace personnel</p>
+<main class="compte-main" style="background:linear-gradient(120deg,#f7f8fa 0%,#e9eafc 100%);min-height:100vh;padding:0;">
+    <div class="compte-container" style="max-width:600px;margin:60px auto 0 auto;background:rgba(255,255,255,0.98);border-radius:18px;box-shadow:0 8px 32px #4e54c81a;padding:44px 38px;animation:fadeInCard 1.1s cubic-bezier(.4,2,.6,1);">
+        <div class="compte-header" style="text-align:center;margin-bottom:32px;">
+            <h2 style="margin:0;color:#222;font-size:2em;font-weight:700;font-family:'Segoe UI','Roboto',Arial,sans-serif;letter-spacing:1px;">Bienvenue, <?php echo htmlspecialchars($user['prenom']); ?> !</h2>
+            <p style="color:#888;font-size:1.08em;">Votre espace personnel</p>
         </div>
-        <div class="user-infos" id="user-infos" style="display:none; position:relative;">
+        <div class="user-infos" id="user-infos" style="display:none;position:relative;animation:fadeInCard 1.2s cubic-bezier(.4,2,.6,1);background:#f7f8fa;border-radius:14px;padding:18px 22px;margin-bottom:18px;box-shadow:0 2px 12px #e9eafc;">
             <span id="close-infos" style="position:absolute;top:10px;right:10px;cursor:pointer;font-size:22px;color:#e74c3c;font-weight:bold;">&times;</span>
             <p><strong>Nom :</strong> <?php echo htmlspecialchars($user['nom']); ?></p>
             <p><strong>Prénom :</strong> <?php echo htmlspecialchars($user['prenom']); ?></p>
@@ -106,25 +107,43 @@ $nbNotif = $stmtNotif->fetchColumn();
             <p><strong>Téléphone :</strong> <?php echo htmlspecialchars($user['num']); ?></p>
             <p><strong>Adresse :</strong> <?php echo htmlspecialchars($user['adresse']); ?></p>
         </div>
-        <div class="actions">
-            <a href="add-article.php" class="action-btn">Ajouter un article</a>
-            <a href="#" id="show-infos" class="action-btn">Mes infos</a>
-            <a href="articles-preteur.php" class="action-btn">Mes articles à prêter</a>
-            <a href="messagerie.php" class="action-btn" style="position:relative;">
-                Messagerie
-                <?php if ($nbNotif > 0): ?>
-                    <span style="position:absolute;top:-8px;right:-8px;background:#e74c3c;color:#fff;border-radius:50%;padding:4px 10px;font-size:0.95em;">+<?= $nbNotif ?></span>
-                <?php endif; ?>
+        <div class="actions" style="display:flex;flex-wrap:wrap;gap:22px;justify-content:center;">
+            <a href="add-article.php" class="action-btn compte-btn">Ajouter un article</a>
+            <a href="#" id="show-infos" class="action-btn compte-btn">Mes infos</a>
+            <a href="articles-preteur.php" class="action-btn compte-btn">Mes articles à prêter</a>
+            
+            <a href="messagerie.php" class="action-btn compte-btn">
+                Messagerie<?php if ($nbNotif > 0): ?> (<?= $nbNotif ?>)<?php endif; ?>
             </a>
             <?php
-            // Vérifier si l'utilisateur est prêteur (a-t-il au moins un article à prêter ?)
             $stmtPreteur = $pdo->prepare('SELECT COUNT(*) FROM article WHERE id_preteur = ?');
             $stmtPreteur->execute([$user_id]);
             $isPreteur = $stmtPreteur->fetchColumn() > 0;
             if ($isPreteur): ?>
-                <button id="show-prets" class="action-btn">Suivre un prêt</button>
+                <a href="suivre_pret.php"><button id="show-prets" class="action-btn compte-btn">Suivre un prêt</button></a>
             <?php endif; ?>
-            <a href="deconnexion.php" class="action-btn" style="background: #e74c3c;">Déconnexion</a>
+            <a href="deconnexion.php" class="action-btn compte-btn" style="background:linear-gradient(90deg,#e74c3c 0%,#e9eafc 100%);color:#fff;">Déconnexion</a>
+        </div>
+        <div id="modal-edit-infos" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:1000;align-items:center;justify-content:center;">
+            <div style="background:rgba(255,255,255,0.98);padding:32px 24px 24px 24px;border-radius:18px;max-width:420px;width:90vw;box-shadow:0 8px 32px #4e54c81a;position:relative;animation:fadeInCard 1.1s cubic-bezier(.4,2,.6,1);">
+                <span id="close-edit-infos" style="position:absolute;top:12px;right:18px;cursor:pointer;font-size:28px;color:#e74c3c;font-weight:bold;">&times;</span>
+                <h3 style="margin-top:0;color:#2986cc;text-align:center;font-size:1.3em;">Modifier mes informations</h3>
+                <form method="post" style="margin-top:18px;">
+                    <label>Nom :</label><br>
+                    <input type="text" name="nom" value="<?= htmlspecialchars($user['nom']) ?>" required style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <label>Prénom :</label><br>
+                    <input type="text" name="prenom" value="<?= htmlspecialchars($user['prenom']) ?>" required style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <label>Pseudo :</label><br>
+                    <input type="text" name="pseudo" value="<?= htmlspecialchars($user['pseudo']) ?>" required style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <label>Email :</label><br>
+                    <input type="email" name="mail" value="<?= htmlspecialchars($user['mail']) ?>" required style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <label>Téléphone :</label><br>
+                    <input type="text" name="num" value="<?= htmlspecialchars($user['num']) ?>" style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <label>Adresse :</label><br>
+                    <input type="text" name="adresse" value="<?= htmlspecialchars($user['adresse']) ?>" style="width:100%;padding:8px;margin-bottom:10px;"><br>
+                    <button type="submit" name="edit_infos" style="background:#2986cc;color:#fff;padding:10px 22px;border:none;border-radius:6px;cursor:pointer;font-size:1.1em;">Enregistrer</button>
+                </form>
+            </div>
         </div>
         <script>
         const userInfos = document.getElementById('user-infos');
@@ -139,16 +158,21 @@ $nbNotif = $stmtNotif->fetchColumn();
             userInfos.style.display = 'none';
             showInfosBtn.style.display = '';
         });
+        document.getElementById('show-edit-infos').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('modal-edit-infos').style.display = 'flex';
+        });
+        document.getElementById('close-edit-infos').addEventListener('click', function() {
+            document.getElementById('modal-edit-infos').style.display = 'none';
+        });
         </script>
     </div>
-    <!-- MODALE SUIVI PRET -->
     <div id="modal-prets" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:#fff;padding:32px 24px 24px 24px;border-radius:14px;max-width:420px;width:90vw;box-shadow:0 8px 32px rgba(78,84,200,0.18);position:relative;">
+        <div style="background:rgba(255,255,255,0.98);padding:32px 24px 24px 24px;border-radius:18px;max-width:420px;width:90vw;box-shadow:0 8px 32px #4e54c81a;position:relative;animation:fadeInCard 1.1s cubic-bezier(.4,2,.6,1);">
             <span id="close-prets" style="position:absolute;top:12px;right:18px;cursor:pointer;font-size:28px;color:#e74c3c;font-weight:bold;">&times;</span>
-            <h3 style="margin-top:0;color:#4e54c8;text-align:center;">Mes prêts en cours</h3>
+            <h3 style="margin-top:0;color:#4e54c8;text-align:center;font-size:1.3em;">Mes prêts en cours</h3>
             <div style="margin-top:18px;">
             <?php
-            // Lister tous les prêts où l'utilisateur est prêteur ou emprunteur et article.etat=3
             $stmtPrets = $pdo->prepare('SELECT d.id, a.nom as article_nom, d.date_retrait, d.date_retour, d.id_preteur, d.id_emprunteur FROM demande d JOIN article a ON d.id_article = a.id WHERE (d.id_preteur = ? OR d.id_emprunteur = ?) AND a.etat = 3 ORDER BY d.date_retrait DESC');
             $stmtPrets->execute([$user_id, $user_id]);
             $prets = $stmtPrets->fetchAll();
@@ -167,40 +191,63 @@ $nbNotif = $stmtNotif->fetchColumn();
             </div>
         </div>
     </div>
-    <style>
-    .btn-suivi {
-        display: inline-block;
-        background: linear-gradient(90deg, #4e54c8 0%, #8f94fb 100%);
-        color: #fff;
-        padding: 8px 18px;
-        border-radius: 8px;
-        font-weight: bold;
-        text-decoration: none;
-        transition: background 0.3s;
-        margin: 6px 0;
+</main>
+<style>
+@keyframes fadeInCard {
+    0% { opacity:0; transform:translateY(40px) scale(0.98); }
+    100% { opacity:1; transform:translateY(0) scale(1); }
+}
+.compte-btn:hover, .compte-btn:focus {
+    background:linear-gradient(90deg,#4e54c8 0%,#8f94fb 100%);
+    color:#fff;
+    box-shadow:0 8px 32px #4e54c830;
+    transform:scale(1.04);
+    border:1px solid #4e54c8;
+}
+.compte-container {
+    backdrop-filter:blur(2px);
+}
+.btn-suivi {
+    display:inline-block;
+    background:linear-gradient(90deg,#4e54c8 0%,#8f94fb 100%);
+    color:#fff;
+    padding:8px 18px;
+    border-radius:8px;
+    font-weight:bold;
+    text-decoration:none;
+    transition:background 0.3s;
+    margin:6px 0;
+}
+.btn-suivi:hover {
+    background:linear-gradient(90deg,#8f94fb 0%,#4e54c8 100%);
+    color:#fff;
+}
+@media (max-width: 700px) {
+    .compte-container {
+        padding:18px 6vw;
+        font-size:1em;
+        margin:18px auto 0 auto;
     }
-    .btn-suivi:hover {
-        background: linear-gradient(90deg, #8f94fb 0%, #4e54c8 100%);
-        color: #fff;
+    .compte-header h2 {
+        font-size:1.3em;
     }
-    </style>
-    <script>
-    const showPretsBtn = document.getElementById('show-prets');
-    const modalPrets = document.getElementById('modal-prets');
-    const closePrets = document.getElementById('close-prets');
-    if (showPretsBtn) {
-        showPretsBtn.addEventListener('click', function() {
-            modalPrets.style.display = 'flex';
-        });
+    .actions {
+        flex-direction:column;
+        gap:12px;
     }
-    if (closePrets) {
-        closePrets.addEventListener('click', function() {
-            modalPrets.style.display = 'none';
-        });
-    }
-    window.addEventListener('click', function(e) {
-        if (e.target === modalPrets) modalPrets.style.display = 'none';
-    });
-    </script>
-</body>
-</html>
+}
+</style>
+<?php
+if (isset($_POST['edit_infos'])) {
+    $nom = trim($_POST['nom']);
+    $prenom = trim($_POST['prenom']);
+    $pseudo = trim($_POST['pseudo']);
+    $mail = trim($_POST['mail']);
+    $num = trim($_POST['num']);
+    $adresse = trim($_POST['adresse']);
+    $stmt = $pdo->prepare('UPDATE users SET nom = ?, prenom = ?, pseudo = ?, mail = ?, num = ?, adresse = ? WHERE id = ?');
+    $stmt->execute([$nom, $prenom, $pseudo, $mail, $num, $adresse, $user_id]);
+    echo "<script>alert('Informations modifiées avec succès !');window.location.href='compte.php';</script>";
+    exit;
+}
+?>

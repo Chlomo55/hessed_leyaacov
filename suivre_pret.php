@@ -1,171 +1,316 @@
-<?php
-require_once 'header.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
-if (!isset($_SESSION['user_id']) || !isset($_GET['demande'])) {
-    echo "<p>Accès refusé.</p>";
-    exit;
-}
-$user_id = $_SESSION['user_id'];
-$id_demande = intval($_GET['demande']);
+<script>
+document.querySelectorAll('form').forEach(function(form) {
+    const renduBtn = form.querySelector('button[name="rendu"]');
+    if (renduBtn) {
+        renduBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Crée le loader
+            let loader = document.createElement('div');
+            loader.className = 'loader';
+            loader.style.cssText = 'display:inline-block;margin:10px auto;width:32px;height:32px;border:4px solid #ccc;border-top:4px solid #4e54c8;border-radius:50%;animation:spin 0.8s linear infinite;';
+            form.appendChild(loader);
 
-// Récupérer les infos du prêt
-$stmt = $pdo->prepare('SELECT d.*, a.nom as article_nom, u1.prenom as emprunteur_prenom, u1.nom as emprunteur_nom, u2.prenom as preteur_prenom, u2.nom as preteur_nom FROM demande d JOIN article a ON d.id_article = a.id JOIN users u1 ON d.id_emprunteur = u1.id JOIN users u2 ON d.id_preteur = u2.id WHERE d.id = ?');
-$stmt->execute([$id_demande]);
-$demande = $stmt->fetch();
-if (!$demande) {
-    echo "<p>Prêt non trouvé.</p>";
-    exit;
+            // Simule un délai court pour le loader (300ms)
+            setTimeout(function() {
+                loader.remove();
+                // Affiche les deux boutons
+                let actionsDiv = document.createElement('div');
+                actionsDiv.className = 'actions';
+                actionsDiv.innerHTML = `
+                    <button type="submit" name="tout_bien">Tout s'est bien passé</button>
+                    <button type="button" onclick="document.getElementById('dommage-${form.pret_id.value}').classList.remove('hidden')">Un dommage à signaler</button>
+                    <div id="dommage-${form.pret_id.value}" class="hidden">
+                        <textarea name="message" placeholder="Expliquez le dommage"></textarea><br>
+                        <input type="file" name="photo[]" multiple accept="image/*"><br>
+                        <button type="submit" name="dommage">Envoyer dommage</button>
+                        <button type="submit" name="demande_encaissement">Demander encaissement du chèque</button>
+                    </div>
+                `;
+                // Vide le formulaire et ajoute les nouveaux boutons
+                form.innerHTML = `<input type="hidden" name="pret_id" value="${form.pret_id.value}">`;
+                form.appendChild(actionsDiv);
+            }, 300);
+        });
+    }
+});
+
+// Animation loader
+const style = document.createElement('style');
+style.innerHTML = `
+@keyframes spin {
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
 }
-$date_debut = strtotime($demande['date_retrait']);
-$date_fin = strtotime($demande['date_retour']);
-$date_now = time();
-$progress = 0;
-if ($date_now > $date_fin) {
-    $progress = 100;
-} elseif ($date_now > $date_debut) {
-    $progress = round(100 * ($date_now - $date_debut) / max(1, $date_fin - $date_debut));
-} else {
-    $progress = 0;
+.loader { }
+`;
+document.head.appendChild(style);
+</script><?php
+include_once('header.php');
+// Connexion à la base de données
+$pdo = new PDO('mysql:host=localhost;dbname=gmah', 'root', '');
+
+// Récupération des prêts (table prets)
+$sql = "SELECT p.id, a.nom AS article, u1.nom AS preteur, p.emprunteur, p.date_debut, p.date_fin, a.id as article_id, a.etat, p.etat as pret_etat
+        FROM prets p
+        JOIN article a ON p.article = a.id
+        JOIN users u1 ON a.id_preteur = u1.id";
+$prets = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+function jours_restants($date_fin) {
+    $fin = new DateTime($date_fin);
+    $now = new DateTime();
+    $interval = $now->diff($fin);
+    return $interval->invert ? 0 : $interval->days;
+}
+
+// Gestion des actions (rendu, dommage, etc.)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $pret_id = $_POST['pret_id'];
+    if (isset($_POST['rendu'])) {
+        $pdo->prepare('UPDATE demande SET statut=1 WHERE id=?')->execute([$pret_id]); // 1 = rendu
+    }
+    if (isset($_POST['fin_bien'])) {
+        // Passage à l'état 2 (prêt terminé parfaitement)
+        $pdo->prepare('UPDATE article SET etat=2 WHERE id=(SELECT article FROM prets WHERE id=?)')->execute([$pret_id]);
+        $pdo->prepare('UPDATE prets SET etat=2 WHERE id=?')->execute([$pret_id]);
+        // On peut ajouter un message de confirmation ici si besoin
+    }
+    if (isset($_POST['fin_dommage'])) {
+        $message = $_POST['message'] ?? '';
+        $montant_demande = $_POST['montant_demande'] ?? 0;
+        $photos = [];
+        if (isset($_FILES['photo'])) {
+            $upload_dir = 'uploads/';
+            foreach ($_FILES['photo']['tmp_name'] as $key => $tmp_name) {
+                $file_name = 'dommage_' . $pret_id . '_' . uniqid() . '_' . basename($_FILES['photo']['name'][$key]);
+                if (move_uploaded_file($tmp_name, $upload_dir . $file_name)) {
+                    $photos[] = $file_name;
+                }
+            }
+        }
+        $photos_json = json_encode($photos);
+        $pdo->prepare('UPDATE article SET etat=3 WHERE id=(SELECT article FROM prets WHERE id=?)')->execute([$pret_id]);
+        $pdo->prepare('UPDATE prets SET etat=3, message=?, montant_demande=?, photos_dommage=? WHERE id=?')
+            ->execute([ $message, $montant_demande, $photos_json, $pret_id ]);
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Suivi du prêt</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi des prêts</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        body {
-            background: linear-gradient(120deg, #8f94fb 0%, #4e54c8 100%);
-            min-height: 100vh;
-            margin: 0;
-            font-family: 'Segoe UI', Arial, sans-serif;
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2em; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        .actions { margin-top: 10px; }
+        .hidden { display: none; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
         }
-        .suivi-container {
-            max-width: 600px;
-            margin: 60px auto 0 auto;
-            background: #fff;
-            border-radius: 22px;
-            box-shadow: 0 8px 32px rgba(78,84,200,0.18);
-            padding: 38px 32px 38px 32px;
+        .modal-content {
             position: relative;
+            background-color: #fff;
+            margin: 15% auto;
+            padding: 20px;
+            width: 70%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        .suivi-title {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4e54c8;
-            margin-bottom: 18px;
-            text-align: center;
+        .btn-primary {
+            background-color: #4e54c8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
         }
-        .suivi-info {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #2d3a4b;
-            font-size: 1.13em;
+        .btn-primary:hover {
+            background-color: #3f44a3;
         }
-        .timeline {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin: 40px 0 30px 0;
-            position: relative;
+        .checkbox-group {
+            margin: 15px 0;
         }
-        .timeline-bar {
-            position: absolute;
-            top: 50%;
-            left: 60px;
-            right: 60px;
-            height: 8px;
-            background: #e0e4fa;
-            border-radius: 6px;
-            z-index: 1;
+        .checkbox-group label {
+            display: block;
+            margin: 10px 0;
         }
-        .timeline-progress {
-            position: absolute;
-            top: 50%;
-            left: 60px;
-            height: 8px;
-            background: linear-gradient(90deg, #4e54c8 0%, #8f94fb 100%);
-            border-radius: 6px;
-            z-index: 2;
-            transition: width 0.7s cubic-bezier(.4,2,.6,1);
+        .textarea-group {
+            margin: 15px 0;
         }
-        .timeline-step {
-            position: relative;
-            z-index: 3;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 120px;
+        .textarea-group textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
-        .timeline-dot {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #fff;
-            border: 4px solid #4e54c8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3em;
-            font-weight: bold;
-            color: #4e54c8;
-            box-shadow: 0 2px 10px rgba(78,84,200,0.10);
+        .photo-upload {
+            margin: 15px 0;
         }
-        .timeline-step.current .timeline-dot {
-            background: linear-gradient(90deg, #4e54c8 0%, #8f94fb 100%);
-            color: #fff;
-            border-color: #8f94fb;
-        }
-        .timeline-label {
+        .success-message {
+            color: #28a745;
+            padding: 10px;
+            border-radius: 5px;
             margin-top: 10px;
-            font-size: 1em;
-            color: #4e54c8;
-            font-weight: 600;
-            text-align: center;
         }
-        .timeline-date {
-            margin-top: 4px;
-            font-size: 0.97em;
-            color: #888;
-            text-align: center;
+        .error-message {
+            color: #dc3545;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
         }
-        @media (max-width: 700px) {
-            .suivi-container { padding: 16px 2vw; }
-            .timeline-step { width: 80px; }
-            .timeline-bar, .timeline-progress { left: 30px; right: 30px; }
+        input[type='number'] {
+            width: 150px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-<div class="suivi-container">
-    <div class="suivi-title">Suivi du prêt de "<?= htmlspecialchars($demande['article_nom']) ?>"</div>
-    <div class="suivi-info">
-        Prêteur : <?= htmlspecialchars($demande['preteur_prenom'] . ' ' . $demande['preteur_nom']) ?><br>
-        Emprunteur : <?= htmlspecialchars($demande['emprunteur_prenom'] . ' ' . $demande['emprunteur_nom']) ?>
-    </div>
-    <div class="timeline">
-        <div class="timeline-bar"></div>
-        <div class="timeline-progress" style="width:<?= $progress ?>%;"></div>
-        <div class="timeline-step<?= ($progress == 0 ? ' current' : '') ?>">
-            <div class="timeline-dot">🚚</div>
-            <div class="timeline-label">Début</div>
-            <div class="timeline-date"><?= date('d/m/Y', $date_debut) ?></div>
-        </div>
-        <div class="timeline-step current">
-            <div class="timeline-dot">📍</div>
-            <div class="timeline-label">Aujourd'hui</div>
-            <div class="timeline-date"><?= date('d/m/Y', $date_now) ?></div>
-        </div>
-        <div class="timeline-step<?= ($progress == 100 ? ' current' : '') ?>">
-            <div class="timeline-dot">🏁</div>
-            <div class="timeline-label">Fin</div>
-            <div class="timeline-date"><?= date('d/m/Y', $date_fin) ?></div>
-        </div>
-    </div>
-    <div style="text-align:center;color:#4e54c8;font-size:1.1em;margin-top:30px;">
-        <?= ($progress < 100) ? 'Le prêt est en cours.' : 'Le prêt est terminé.' ?>
-    </div>
-</div>
+<h1>Suivi des prêts</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Article</th>
+            <th>Prêteur</th>
+            <th>Emprunteur</th>
+            <th>Date début</th>
+            <th>Heure début</th>
+            <th>Date fin</th>
+            <th>Heure fin</th>
+            <th>Jours restants</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($prets as $pret): ?>
+        <tr>
+            <td><?= htmlspecialchars($pret['article']) ?></td>
+            <td><?= htmlspecialchars($pret['preteur']) ?></td>
+            <td><?= htmlspecialchars($pret['emprunteur']) ?></td>
+            <td><?= date('d/m/Y', strtotime($pret['date_debut'])) ?></td>
+            <td><?= date('H:i', strtotime($pret['date_debut'])) ?></td>
+            <td><?= date('d/m/Y', strtotime($pret['date_fin'])) ?></td>
+            <td><?= date('H:i', strtotime($pret['date_fin'])) ?></td>
+            <td><?= jours_restants($pret['date_fin']) ?></td>
+            <td>
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="pret_id" value="<?= $pret['id'] ?>">
+                    <?php if ($pret['pret_etat'] == 1): ?>
+                        <button type="button" class="btn-primary" onclick="openReturnModal(<?= $pret['id'] ?>)">Mettre fin au prêt</button>
+                        <div id="returnModal-<?= $pret['id'] ?>" class="modal">
+                            <div class="modal-content">
+                                <h3>Comment s'est passé le retour ?</h3>
+                                <form method="post" enctype="multipart/form-data" class="return-form" id="returnForm-<?= $pret['id'] ?>">
+                                    <input type="hidden" name="pret_id" value="<?= $pret['id'] ?>">
+                                    <div class="choice-buttons">
+                                        <button type="button" class="btn-primary" onclick="showGoodReturn(<?= $pret['id'] ?>)">Tout s'est bien passé</button>
+                                        <button type="button" class="btn-primary" onclick="showDamageReport(<?= $pret['id'] ?>)">Un dommage à signaler</button>
+                                    </div>
+                                    <div id="goodReturn-<?= $pret['id'] ?>" class="hidden">
+                                        <div class="checkbox-group">
+                                            <label>
+                                                <input type="checkbox" name="article_recupere" required> 
+                                                Je certifie avoir récupéré l'article
+                                            </label>
+                                            <label>
+                                                <input type="checkbox" name="cheque_rendu" required> 
+                                                Je certifie avoir rendu le chèque de caution
+                                            </label>
+                                        </div>
+                                        <button type="submit" name="fin_bien" class="btn-primary">Confirmer</button>
+                                    </div>
+                                    <div id="damageReport-<?= $pret['id'] ?>" class="hidden">
+                                        <div class="textarea-group">
+                                            <label>Description du dommage :</label>
+                                            <textarea name="message" required placeholder="Décrivez en détail le dommage constaté"></textarea>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Montant suggéré de prélèvement sur la caution (€) :</label>
+                                            <input type="number" name="montant_demande" min="0" required>
+                                        </div>
+                                        <div class="photo-upload">
+                                            <label>Photos du dommage (2 à 5 photos) :</label>
+                                            <input type="file" name="photo[]" multiple accept="image/*" required 
+                                                onchange="validatePhotos(this)" data-min="2" data-max="5">
+                                            <div class="error-message hidden"></div>
+                                        </div>
+                                        <button type="submit" name="fin_dommage" class="btn-primary">Envoyer le signalement</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    <?php elseif ($pret['pret_etat'] == 2): ?>
+                        <span>Prêt terminé, tout s'est bien passé</span>
+                    <?php elseif ($pret['pret_etat'] == 3): ?>
+                        <span>Prêt terminé, dommage signalé</span>
+                    <?php else: ?>
+                        <span>En attente de début</span>
+                    <?php endif; ?>
+                </form>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+<script>
+function openReturnModal(pretId) {
+    document.getElementById(`returnModal-${pretId}`).style.display = 'block';
+}
+function showGoodReturn(pretId) {
+    document.getElementById(`goodReturn-${pretId}`).classList.remove('hidden');
+    document.getElementById(`damageReport-${pretId}`).classList.add('hidden');
+}
+function showDamageReport(pretId) {
+    document.getElementById(`damageReport-${pretId}`).classList.remove('hidden');
+    document.getElementById(`goodReturn-${pretId}`).classList.add('hidden');
+}
+function validatePhotos(input) {
+    const min = parseInt(input.dataset.min);
+    const max = parseInt(input.dataset.max);
+    const files = input.files;
+    const errorDiv = input.nextElementSibling;
+    if (files.length < min || files.length > max) {
+        errorDiv.textContent = `Veuillez sélectionner entre ${min} et ${max} photos.`;
+        errorDiv.classList.remove('hidden');
+        input.value = '';
+    } else {
+        errorDiv.classList.add('hidden');
+    }
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+document.querySelectorAll('.return-form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        if (form.querySelector('[name="dommage"]') && this.elements['photo[]'].files.length < 2) {
+            e.preventDefault();
+            alert('Veuillez sélectionner au moins 2 photos');
+            return;
+        }
+        if (this.elements['dommage']) {
+            const message = document.createElement('div');
+            message.className = 'success-message';
+            message.textContent = 'Votre signalement a été envoyé. Notre service traitera votre demande dans les plus brefs délais.';
+            form.appendChild(message);
+        }
+    });
+});
+</script>
 </body>
 </html>
